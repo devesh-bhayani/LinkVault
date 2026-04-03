@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+  .input {
+    @apply w-full px-3 py-2.5 rounded-input border border-foreground/15 bg-white
+           text-sm placeholder:text-foreground/35
+           focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+           transition-colors;
+  }
+
+  .btn-primary {
+    @apply rounded-input bg-accent text-white font-medium
+           hover:bg-accent-hover active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all;
+  }
+}
+
+/* Toast slide-up animation */
+@keyframes slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out both;
+}

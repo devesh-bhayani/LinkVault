@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { ExternalLink, MoreHorizontal, Trash2, Edit2, Eye, EyeOff, Instagram, Check } from 'lucide-react'
+import { ExternalLink, MoreHorizontal, Trash2, Edit2, Eye, EyeOff, Instagram, Check, CheckSquare, Square } from 'lucide-react'
 import { deleteLink, updateLink } from '@/lib/db'
 import type { Link } from '@/lib/types'
 
@@ -10,6 +10,9 @@ interface LinkCardProps {
   link: Link
   categoryColor?: string | null
   reviewMode?: boolean
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
   onDeleted: (id: string) => void
   onUpdated: (link: Link) => void
   onEdit: (link: Link) => void
@@ -34,7 +37,7 @@ function truncateUrl(url: string, maxLen = 48): string {
   }
 }
 
-export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, onUpdated, onEdit }: LinkCardProps) {
+export default function LinkCard({ link, categoryColor, reviewMode, selectable, selected, onToggleSelect, onDeleted, onUpdated, onEdit }: LinkCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTogglingRead, setIsTogglingRead] = useState(false)
@@ -68,9 +71,12 @@ export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, o
 
   return (
     <div
+      onClick={selectable ? () => onToggleSelect?.(link.id) : undefined}
       className={`relative bg-white rounded-card shadow-card hover:shadow-card-hover transition-all group ${
         isDeleting ? 'opacity-40 pointer-events-none scale-95' : ''
-      } ${link.is_read ? 'opacity-70' : ''}`}
+      } ${link.is_read ? 'opacity-70' : ''} ${
+        selectable ? 'cursor-pointer' : ''
+      } ${selected ? 'ring-2 ring-accent' : ''}`}
     >
       {/* Category color bar */}
       {categoryColor && (
@@ -83,6 +89,11 @@ export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, o
       <div className="p-4">
         {/* Header row: favicon + title + menu */}
         <div className="flex items-start gap-2.5">
+          {selectable && (
+            <span className="shrink-0 mt-0.5 text-accent">
+              {selected ? <CheckSquare size={16} /> : <Square size={16} className="text-foreground/30" />}
+            </span>
+          )}
           {faviconUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -106,6 +117,7 @@ export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, o
           </div>
 
           {/* Kebab menu */}
+          {!selectable && (
           <div className="relative shrink-0">
             <button
               onClick={() => setMenuOpen(v => !v)}
@@ -170,6 +182,7 @@ export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, o
               </>
             )}
           </div>
+          )}
         </div>
 
         {/* URL */}
@@ -177,6 +190,7 @@ export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, o
           href={link.url}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={selectable ? (e) => e.preventDefault() : undefined}
           className="block mt-1.5 text-xs text-accent hover:underline truncate"
         >
           {truncateUrl(link.url)}

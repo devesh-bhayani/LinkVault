@@ -8,6 +8,9 @@ interface LinkListProps {
   categories: Category[]
   loading?: boolean
   reviewMode?: boolean
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
   onDeleted: (id: string) => void
   onUpdated: (link: Link) => void
   onEdit: (link: Link) => void
@@ -15,7 +18,7 @@ interface LinkListProps {
 
 const SKELETON_COUNT = 6
 
-export default function LinkList({ links, categories, loading, reviewMode, onDeleted, onUpdated, onEdit }: LinkListProps) {
+export default function LinkList({ links, categories, loading, reviewMode, selectable, selectedIds, onToggleSelect, onDeleted, onUpdated, onEdit }: LinkListProps) {
   const colorMap = new Map(categories.map(c => [c.name, c.color]))
 
   if (loading) {
@@ -49,6 +52,9 @@ export default function LinkList({ links, categories, loading, reviewMode, onDel
           link={link}
           categoryColor={link.category ? colorMap.get(link.category) ?? null : null}
           reviewMode={reviewMode}
+          selectable={selectable}
+          selected={selectedIds?.has(link.id)}
+          onToggleSelect={onToggleSelect}
           onDeleted={onDeleted}
           onUpdated={onUpdated}
           onEdit={onEdit}

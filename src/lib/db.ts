@@ -94,6 +94,29 @@ export async function deleteLink(id: string) {
   return { error };
 }
 
+export async function bulkUpdateLinks(ids: string[], updates: Partial<LinkInsert>) {
+  if (ids.length === 0) return { data: [] as Link[], error: null };
+
+  const { data, error } = await supabase
+    .from('links')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .in('id', ids)
+    .select();
+
+  return { data: data as Link[] | null, error };
+}
+
+export async function bulkDeleteLinks(ids: string[]) {
+  if (ids.length === 0) return { error: null };
+
+  const { error } = await supabase
+    .from('links')
+    .delete()
+    .in('id', ids);
+
+  return { error };
+}
+
 export async function bulkCreateLinks(links: LinkInsert[]) {
   const { data, error } = await supabase
     .from('links')

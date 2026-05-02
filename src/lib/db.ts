@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { normalizeUrl } from './url-normalize';
 import type { Link, LinkInsert, Category } from './types';
 
 // ── Links ──────────────────────────────────────────────
@@ -159,6 +160,29 @@ export async function getExistingUrls(urls: string[]): Promise<Set<string>> {
     .in('url', urls);
 
   return new Set((data ?? []).map((r: { url: string }) => r.url));
+}
+
+/** Returns every stored URL in normalized form — used for fuzzy dedup. */
+export async function getAllNormalizedUrls(): Promise<Set<string>> {
+  const PAGE = 1000;
+  const norm = new Set<string>();
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('links')
+      .select('url')
+      .range(from, from + PAGE - 1);
+
+    if (error || !data) break;
+    for (const row of data as { url: string }[]) {
+      norm.add(normalizeUrl(row.url));
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return norm;
 }
 
 // ── Categories ─────────────────────────────────────────

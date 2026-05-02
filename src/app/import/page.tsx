@@ -6,12 +6,15 @@ import { CheckCircle, Home, BookmarkPlus } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import ImportUploader from '@/components/ImportUploader'
 import ImportPreview from '@/components/ImportPreview'
-import { bulkCreateLinks, getExistingUrls } from '@/lib/db'
+import { bulkCreateLinks, getAllNormalizedUrls } from '@/lib/db'
+import { normalizeUrl } from '@/lib/url-normalize'
 import type { ExtractedLink } from '@/lib/types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+type DupeReason = 'existing' | 'in_import' | null
+
 interface PreviewItem extends ExtractedLink {
-  alreadySaved: boolean
+  dupeOf: DupeReason
 }
 
 type Stage =
@@ -29,13 +32,19 @@ export default function ImportPage() {
       return
     }
 
-    // Check which URLs already exist in DB
-    const existing = await getExistingUrls(links.map(l => l.url))
+    // Fuzzy dedup: normalize stored URLs once, then check each extracted URL
+    // against both the DB and earlier links in the same import batch.
+    const existingNorm = await getAllNormalizedUrls()
+    const seenInImport = new Set<string>()
 
-    const items: PreviewItem[] = links.map(l => ({
-      ...l,
-      alreadySaved: existing.has(l.url),
-    }))
+    const items: PreviewItem[] = links.map(l => {
+      const norm = normalizeUrl(l.url)
+      let dupeOf: DupeReason = null
+      if (existingNorm.has(norm)) dupeOf = 'existing'
+      else if (seenInImport.has(norm)) dupeOf = 'in_import'
+      seenInImport.add(norm)
+      return { ...l, dupeOf }
+    })
 
     setStage({ type: 'preview', items, username })
   }

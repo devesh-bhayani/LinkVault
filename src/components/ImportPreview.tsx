@@ -5,8 +5,10 @@ import { formatDistanceToNow } from 'date-fns'
 import { ExternalLink, CheckSquare, Square, Loader2, Instagram } from 'lucide-react'
 import type { ExtractedLink } from '@/lib/types'
 
+type DupeReason = 'existing' | 'in_import' | null
+
 interface PreviewItem extends ExtractedLink {
-  alreadySaved: boolean
+  dupeOf: DupeReason
 }
 
 interface ImportPreviewProps {
@@ -16,15 +18,14 @@ interface ImportPreviewProps {
 }
 
 export default function ImportPreview({ items, onConfirm, onBack }: ImportPreviewProps) {
-  const newItems = useMemo(() => items.filter(i => !i.alreadySaved), [items])
+  const newItems = useMemo(() => items.filter(i => i.dupeOf === null), [items])
   const [selected, setSelected] = useState<Set<string>>(() => new Set(newItems.map(i => i.url)))
-  const [showDupes, setShowDupes] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [filter, setFilter] = useState<'new' | 'all'>('new')
 
-  const dupeCount = items.length - newItems.length
+  const existingDupes = items.filter(i => i.dupeOf === 'existing').length
+  const importDupes = items.filter(i => i.dupeOf === 'in_import').length
   const displayed = filter === 'new' ? newItems : items
-  const selectedCount = Array.from(selected).filter(url => displayed.some(i => i.url === url)).length
 
   function toggleItem(url: string) {
     setSelected(prev => {
@@ -36,7 +37,7 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
   }
 
   function toggleAll() {
-    const displayedNew = displayed.filter(i => !i.alreadySaved)
+    const displayedNew = displayed.filter(i => i.dupeOf === null)
     const allSelected = displayedNew.every(i => selected.has(i.url))
     setSelected(prev => {
       const next = new Set(prev)
@@ -73,7 +74,8 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
           </p>
           <p className="text-xs text-foreground/50 mt-0.5">
             {newItems.length} new
-            {dupeCount > 0 && ` · ${dupeCount} already saved`}
+            {existingDupes > 0 && ` · ${existingDupes} already saved`}
+            {importDupes > 0 && ` · ${importDupes} duplicate${importDupes !== 1 ? 's' : ''}`}
           </p>
         </div>
 
@@ -100,7 +102,7 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
             onClick={toggleAll}
             className="flex items-center gap-1.5 text-xs text-foreground/60 hover:text-foreground"
           >
-            {displayed.filter(i => !i.alreadySaved).every(i => selected.has(i.url))
+            {displayed.filter(i => i.dupeOf === null).every(i => selected.has(i.url))
               ? <CheckSquare size={14} className="text-accent" />
               : <Square size={14} />
             }
@@ -117,15 +119,18 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
         )}
 
         {displayed.map(item => {
-          const isNew = !item.alreadySaved
+          const isNew = item.dupeOf === null
           const isChecked = selected.has(item.url)
+          const dupeLabel =
+            item.dupeOf === 'existing' ? 'saved' :
+            item.dupeOf === 'in_import' ? 'dup' : null
 
           return (
             <div
               key={item.url}
               onClick={() => isNew && toggleItem(item.url)}
               className={`flex items-start gap-3 p-3 rounded-input border transition-colors ${
-                item.alreadySaved
+                !isNew
                   ? 'border-foreground/5 bg-foreground/2 opacity-50 cursor-default'
                   : isChecked
                     ? 'border-accent/30 bg-accent/5 cursor-pointer'
@@ -134,8 +139,8 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
             >
               {/* Checkbox */}
               <div className="mt-0.5 shrink-0">
-                {item.alreadySaved ? (
-                  <span className="text-xs text-foreground/40 whitespace-nowrap">saved</span>
+                {dupeLabel ? (
+                  <span className="text-xs text-foreground/40 whitespace-nowrap">{dupeLabel}</span>
                 ) : isChecked ? (
                   <CheckSquare size={16} className="text-accent" />
                 ) : (

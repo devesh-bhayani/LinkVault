@@ -45,6 +45,29 @@ export async function getLinks(options?: {
   return { data: data as Link[] | null, error, count };
 }
 
+/** Fetch every link in the library — used by export. Pages internally to
+ * stay under Supabase's per-request row cap. */
+export async function getAllLinks(): Promise<Link[]> {
+  const PAGE = 1000;
+  const all: Link[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('links')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+
+    if (error || !data) break;
+    all.push(...(data as Link[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return all;
+}
+
 export async function getUnreadCount(): Promise<number> {
   const { count } = await supabase
     .from('links')

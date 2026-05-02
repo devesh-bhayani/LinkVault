@@ -11,6 +11,7 @@ import { getLinks, getCategories, bulkUpdateLinks, bulkDeleteLinks } from '@/lib
 import type { Link, Category } from '@/lib/types'
 import EditLinkModal from '@/components/EditLinkModal'
 import BulkActionBar from '@/components/BulkActionBar'
+import ExportMenu from '@/components/ExportMenu'
 import { CheckSquare } from 'lucide-react'
 
 const PAGE_SIZE = 50
@@ -227,13 +228,19 @@ export default function DashboardPage() {
               {isFiltering && ' found'}
             </p>
             {!selectMode && (
-              <button
-                onClick={() => setSelectMode(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium text-foreground/60 hover:bg-foreground/5 transition-colors"
-              >
-                <CheckSquare size={13} />
-                Select
-              </button>
+              <div className="flex items-center gap-1">
+                <ExportMenu
+                  onSuccess={msg => setToast({ message: msg, type: 'success' })}
+                  onError={msg => setToast({ message: msg, type: 'error' })}
+                />
+                <button
+                  onClick={() => setSelectMode(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill text-xs font-medium text-foreground/60 hover:bg-foreground/5 transition-colors"
+                >
+                  <CheckSquare size={13} />
+                  Select
+                </button>
+              </div>
             )}
           </div>
         )}

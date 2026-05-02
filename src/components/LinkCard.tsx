@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { ExternalLink, MoreHorizontal, Trash2, Edit2, Eye, EyeOff, Instagram } from 'lucide-react'
+import { ExternalLink, MoreHorizontal, Trash2, Edit2, Eye, EyeOff, Instagram, Check } from 'lucide-react'
 import { deleteLink, updateLink } from '@/lib/db'
 import type { Link } from '@/lib/types'
 
 interface LinkCardProps {
   link: Link
   categoryColor?: string | null
+  reviewMode?: boolean
   onDeleted: (id: string) => void
   onUpdated: (link: Link) => void
   onEdit: (link: Link) => void
@@ -33,10 +34,11 @@ function truncateUrl(url: string, maxLen = 48): string {
   }
 }
 
-export default function LinkCard({ link, categoryColor, onDeleted, onUpdated, onEdit }: LinkCardProps) {
+export default function LinkCard({ link, categoryColor, reviewMode, onDeleted, onUpdated, onEdit }: LinkCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTogglingRead, setIsTogglingRead] = useState(false)
+  const [isMarkingDone, setIsMarkingDone] = useState(false)
 
   const faviconUrl = getFaviconUrl(link.url)
   const relativeDate = formatDistanceToNow(new Date(link.created_at), { addSuffix: true })
@@ -54,6 +56,14 @@ export default function LinkCard({ link, categoryColor, onDeleted, onUpdated, on
     const { data } = await updateLink(link.id, { is_read: !link.is_read })
     if (data) onUpdated(data)
     setIsTogglingRead(false)
+  }
+
+  async function handleOpenAndDone() {
+    window.open(link.url, '_blank', 'noopener,noreferrer')
+    setIsMarkingDone(true)
+    const { data } = await updateLink(link.id, { is_read: true })
+    if (data) onUpdated(data)
+    setIsMarkingDone(false)
   }
 
   return (
@@ -203,6 +213,19 @@ export default function LinkCard({ link, categoryColor, onDeleted, onUpdated, on
             </span>
           )}
         </div>
+
+        {/* Review-mode primary CTA */}
+        {reviewMode && !link.is_read && (
+          <button
+            onClick={handleOpenAndDone}
+            disabled={isMarkingDone}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-input bg-accent/10 text-accent text-sm font-medium hover:bg-accent hover:text-white transition-colors disabled:opacity-50"
+          >
+            <ExternalLink size={14} />
+            Open &amp; Done
+            {isMarkingDone && <Check size={14} className="ml-1" />}
+          </button>
+        )}
       </div>
     </div>
   )

@@ -6,10 +6,19 @@ import type { Link, LinkInsert, Category } from './types';
 export async function getLinks(options?: {
   search?: string;
   category?: string;
+  unreadOnly?: boolean;
+  ascending?: boolean;
   limit?: number;
   offset?: number;
 }) {
-  const { search, category, limit = 50, offset = 0 } = options ?? {};
+  const {
+    search,
+    category,
+    unreadOnly,
+    ascending = false,
+    limit = 50,
+    offset = 0,
+  } = options ?? {};
 
   let query = supabase
     .from('links')
@@ -23,13 +32,26 @@ export async function getLinks(options?: {
     query = query.eq('category', category);
   }
 
+  if (unreadOnly) {
+    query = query.eq('is_read', false);
+  }
+
   query = query
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending })
     .range(offset, offset + limit - 1);
 
   const { data, error, count } = await query;
 
   return { data: data as Link[] | null, error, count };
+}
+
+export async function getUnreadCount(): Promise<number> {
+  const { count } = await supabase
+    .from('links')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_read', false);
+
+  return count ?? 0;
 }
 
 export async function getLinkById(id: string) {

@@ -63,12 +63,30 @@ export default function QuickSaveForm() {
       setIsFetchingMeta(true)
       const meta = await fetchMetadata(url)
       setIsFetchingMeta(false)
+
       if (meta.title) {
         setForm(prev => ({
           ...prev,
           title: prev.title || meta.title!,
           description: prev.description || meta.description || '',
         }))
+      }
+
+      // Auto-suggest category via Ollama (only fills if the user hasn't typed one)
+      if (meta.title || meta.description) {
+        try {
+          const res = await fetch('/api/categorize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, title: meta.title, description: meta.description }),
+          })
+          const { category } = await res.json()
+          if (category) {
+            setForm(prev => ({ ...prev, category: prev.category || category }))
+          }
+        } catch {
+          // Ollama not running — silently skip
+        }
       }
     }, 500)
   }, [])

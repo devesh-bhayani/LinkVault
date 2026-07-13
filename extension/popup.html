@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --bg: #faf8f5;
+        --fg: #1a1714;
+        --accent: #c45d3e;
+        --border: rgba(26, 23, 20, 0.15);
+      }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        width: 300px;
+        margin: 0;
+        padding: 16px;
+      }
+      h1 { font-size: 15px; margin: 0 0 12px; }
+      label { display: block; font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        font-size: 13px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+      }
+      button {
+        width: 100%;
+        margin-top: 14px;
+        padding: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      button.secondary {
+        margin-top: 8px;
+        color: var(--fg);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+      .hint { font-size: 11px; color: rgba(26, 23, 20, 0.5); margin-top: 4px; }
+      #status { font-size: 12px; margin-top: 10px; min-height: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>LinkVault</h1>
+
+    <label for="endpoint">App URL</label>
+    <input id="endpoint" type="url" placeholder="https://linkvault.vercel.app" />
+    <p class="hint">Your deployed LinkVault (or http://localhost:3000 for dev).</p>
+
+    <label for="apiKey">API key</label>
+    <input id="apiKey" type="password" placeholder="QUICK_SAVE_API_KEY" />
+    <p class="hint">Must match QUICK_SAVE_API_KEY on the server. Leave blank if unset.</p>
+
+    <button id="save-settings">Save settings</button>
+    <button id="save-page" class="secondary">Save current tab now</button>
+
+    <div id="status"></div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

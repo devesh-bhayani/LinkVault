@@ -1,5 +1,5 @@
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434'
-const MODEL = 'qwen3:8b'
+const MODEL = process.env.OLLAMA_MODEL ?? 'qwen3:8b'
 const TIMEOUT_MS = 15_000
 
 const CATEGORIES = [

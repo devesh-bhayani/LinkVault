@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       categorizeServer(url, body?.title ?? null, body?.description ?? null),
     ])
 
-    const { data, error } = await createLink({
+    const { data, error, duplicate } = await createLink({
       url,
       title: body?.title ?? meta.title,
       description: body?.description ?? meta.description,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true, duplicate, data })
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }

@@ -111,7 +111,7 @@ export default function QuickSaveForm() {
     }
 
     setIsSaving(true)
-    const { error } = await createLink({
+    const { error, duplicate } = await createLink({
       url: form.url.trim(),
       title: form.title.trim() || null,
       description: form.description.trim() || null,
@@ -127,7 +127,10 @@ export default function QuickSaveForm() {
     if (error) {
       setToast({ message: 'Failed to save link. Try again.', type: 'error' })
     } else {
-      setToast({ message: 'Link saved!', type: 'success' })
+      setToast({
+        message: duplicate ? 'Already in your library.' : 'Link saved!',
+        type: 'success',
+      })
       setForm(EMPTY_FORM)
       urlInputRef.current?.focus()
     }

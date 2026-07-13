@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle, Home, BookmarkPlus } from 'lucide-react'
+import { CheckCircle, Home, AlertCircle } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import ImportUploader from '@/components/ImportUploader'
 import ImportPreview from '@/components/ImportPreview'
@@ -21,6 +21,7 @@ type Stage =
   | { type: 'upload' }
   | { type: 'preview'; items: PreviewItem[]; username: string }
   | { type: 'done'; imported: number; skipped: number }
+  | { type: 'error'; items: PreviewItem[]; username: string; message: string }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function ImportPage() {
@@ -62,8 +63,18 @@ export default function ImportPage() {
       is_read: false,
     }))
 
-    const { data } = await bulkCreateLinks(inserts)
-    const imported = data?.length ?? selected.length
+    const { data, error } = await bulkCreateLinks(inserts)
+
+    if (error) {
+      setStage(prev =>
+        prev.type === 'preview'
+          ? { type: 'error', items: prev.items, username: prev.username, message: error.message }
+          : prev,
+      )
+      return
+    }
+
+    const imported = data?.length ?? 0
     const skipped = selected.length - imported
 
     setStage({ type: 'done', imported, skipped })
@@ -87,7 +98,7 @@ export default function ImportPage() {
         </div>
 
         {/* Step indicator */}
-        {stage.type !== 'done' && (
+        {(stage.type === 'upload' || stage.type === 'preview') && (
           <div className="flex items-center gap-2 mb-6">
             {['Upload', 'Review', 'Done'].map((label, i) => {
               const stepIndex = stage.type === 'upload' ? 0 : stage.type === 'preview' ? 1 : 2
@@ -126,6 +137,26 @@ export default function ImportPage() {
               onConfirm={handleConfirm}
               onBack={() => setStage({ type: 'upload' })}
             />
+          )}
+
+          {stage.type === 'error' && (
+            <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertCircle size={28} className="text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Import failed</h2>
+                <p className="text-sm text-foreground/50 mt-1">
+                  Nothing was saved. {stage.message}
+                </p>
+              </div>
+              <button
+                onClick={() => setStage({ type: 'preview', items: stage.items, username: stage.username })}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-input border border-foreground/15 text-sm font-medium hover:bg-foreground/5 transition-colors"
+              >
+                Back to review
+              </button>
+            </div>
           )}
 
           {stage.type === 'done' && (

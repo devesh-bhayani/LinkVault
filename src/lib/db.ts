@@ -95,7 +95,13 @@ export async function createLink(link: LinkInsert) {
     .select()
     .single();
 
-  return { data: data as Link | null, error };
+  // Unique-URL violation (migration 002) — a soft "already saved", not a hard
+  // error, so save flows can report it kindly instead of "failed".
+  if (error?.code === '23505') {
+    return { data: null as Link | null, error: null, duplicate: true };
+  }
+
+  return { data: data as Link | null, error, duplicate: false };
 }
 
 export async function updateLink(id: string, updates: Partial<LinkInsert>) {

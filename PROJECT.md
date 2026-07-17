@@ -70,6 +70,7 @@ Browser (all pages are client-rendered)
                 │                         server uses the service role key)
 Server (Next.js API routes)
 ├─ POST /api/fetch-metadata ─► fetch-metadata-server.ts ─► target website
+│                              (SSRF-guarded: private-IP block, capped read)
 ├─ POST /api/categorize ─────► categorize-server.ts ─────► Ollama (localhost or tunnel)
 └─ POST /api/quick-save ─────► both of the above + db.createLink
                 ▲

@@ -66,27 +66,35 @@ more, not less.
 
 ---
 
-## 3. HIGH (security) — SSRF and unbounded reads in the metadata fetcher
+## 3. RESOLVED — SSRF and unbounded reads in the metadata fetcher
 
-**What:** `fetchMetadataServer()` fetches any caller-supplied URL server-side
-with `redirect: 'follow'` and reads the entire body with `res.text()` — no IP
-range checks, no size cap, no content-type check. The `/api/fetch-metadata`
-route that exposes it is unauthenticated. On a deployed instance this is a
-classic SSRF probe (internal services, cloud metadata endpoints via
-redirects) plus a memory/DoS vector (point it at a multi-GB file).
+**Was:** `fetchMetadataServer()` fetched any caller-supplied URL server-side
+with `redirect: 'follow'` and read the whole body with `res.text()` — no IP
+checks, no size cap, no content-type check, behind an unauthenticated route.
+A classic SSRF probe (internal services, cloud metadata endpoints) plus a
+memory/DoS vector.
 
-**Where:** `src/lib/fetch-metadata-server.ts:43-88`,
-`src/app/api/fetch-metadata/route.ts`.
+**Fixed 2026-07-17** in `src/lib/fetch-metadata-server.ts`:
+- Scheme allowlist (`http:`/`https:` only) + `localhost` block.
+- `isSafeUrl()` resolves the host via DNS and rejects if ANY resolved
+  address is loopback/private/link-local/CGNAT/reserved (v4 + v6, incl.
+  IPv4-mapped) — so obfuscated forms (`2130706433`, `0x7f...`) and internal
+  DNS names are caught, not just IP literals.
+- Redirects followed manually (`redirect: 'manual'`, max 3), re-validating
+  every hop.
+- Content-type must be `text/html`/`application/xhtml`; body read is capped
+  at 512 KB via the stream reader.
+- Null-on-failure contract preserved.
+- `isPrivateIp()` exported and unit-tested (`fetch-metadata-server.test.ts`,
+  8 cases). Live-probed: `localhost`, `127.0.0.1`, `169.254.169.254`,
+  decimal-encoded loopback, and `ftp://` all return nulls; `example.com`
+  still returns metadata.
 
-**Why it matters:** Server-side request forgery from a public endpoint is the
-most attackable surface in the app once deployed.
-
-**Fix (one task):** In `fetchMetadataServer`: (a) parse the URL, allow only
-`http:`/`https:`, reject hostnames that are IP literals in private/loopback/
-link-local ranges and `localhost`; (b) re-validate `res.url` after redirects
-against the same rules; (c) only parse when content-type includes
-`text/html`; (d) read at most ~512 KB via the body reader instead of
-`res.text()`. Keep the null-on-failure contract.
+**Residual (accepted for a personal tool):** DNS rebinding between our
+`lookup` and `fetch`'s own resolution isn't closed — a pinned-IP dispatcher
+(e.g. `undici` with a custom lookup) would be the next step if this ever
+serves untrusted callers at scale. The route is also still unauthenticated;
+same-origin abuse after this hardening is low-risk (see #4).
 
 ---
 

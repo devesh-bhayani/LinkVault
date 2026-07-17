@@ -111,7 +111,9 @@ supabase/migrations/  # schema; applied BY HAND (no runner)
   `categories` table but `links.category` is free text — custom tags never
   show as pills (GAPS.md #9).
 - **Metadata fetching is server-side only** (CORS). 5s timeout, nulls on
-  failure. Currently lacks SSRF hardening — see GAPS.md #3 before exposing.
+  failure. SSRF-hardened (GAPS.md #3): scheme allowlist, DNS-resolved
+  private-IP blocking, per-hop redirect re-validation, 512KB cap. Keep new
+  outbound-fetch code behind `isSafeUrl()`.
 - **`updated_at` is set in app code** (db.ts update helpers), not a trigger.
 - **Export ZIPs can be 100MB+** and are parsed in-browser; keep memory in
   mind (currently loaded twice — GAPS.md #6).

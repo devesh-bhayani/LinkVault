@@ -47,7 +47,10 @@ loadEnv(resolve(ROOT, '.env.local'))
 
 // ── Config (kept in sync with src/lib/categorize-server.ts) ────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Prefer the service role key — with RLS enabled (migration 003) the anon
+// key can't read or write links. Falls back to anon for pre-RLS setups.
+const SUPABASE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const OLLAMA_URL = process.env.OLLAMA_URL ?? 'http://localhost:11434'
 const MODEL = process.env.OLLAMA_MODEL ?? 'qwen3:8b'
 const TIMEOUT_MS = 15_000

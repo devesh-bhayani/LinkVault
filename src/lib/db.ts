@@ -2,6 +2,29 @@ import { supabase } from './supabase';
 import { normalizeUrl } from './url-normalize';
 import type { Link, LinkInsert, Category } from './types';
 
+// ── Auth (single user; see AuthGate + migration 003) ───
+
+export async function signIn(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  return { error };
+}
+
+export async function signOut() {
+  await supabase.auth.signOut();
+}
+
+export function getSession() {
+  return supabase.auth.getSession();
+}
+
+/** Subscribe to sign-in/out changes. Returns an unsubscribe function. */
+export function onAuthChange(callback: (signedIn: boolean) => void) {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    callback(!!session);
+  });
+  return () => data.subscription.unsubscribe();
+}
+
 // ── Links ──────────────────────────────────────────────
 
 export async function getLinks(options?: {

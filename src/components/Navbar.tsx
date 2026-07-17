@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BookmarkPlus, Home, Upload, Inbox } from 'lucide-react'
-import { getUnreadCount } from '@/lib/db'
+import { BookmarkPlus, Home, Upload, Inbox, LogOut } from 'lucide-react'
+import { getUnreadCount, signOut } from '@/lib/db'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: Home },
@@ -57,6 +57,14 @@ export default function Navbar() {
               </Link>
             )
           })}
+          <button
+            onClick={() => signOut()}
+            title="Sign out"
+            aria-label="Sign out"
+            className="ml-1 p-1.5 rounded-pill text-foreground/40 hover:text-foreground hover:bg-foreground/5 transition-colors"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </nav>

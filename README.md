@@ -39,18 +39,22 @@ cp .env.example .env.local   # then fill in the values
 
 ### 1. Database
 
-Run `supabase/migrations/001_create_tables.sql` against your Supabase project
-(SQL editor, or `supabase db push`). It creates the `links` and `categories`
-tables, the full-text-search column, and seeds default categories.
+Run the files in `supabase/migrations/` **in order** against your Supabase
+project (SQL editor, or `supabase db push`): `001` creates the tables, FTS
+column, and seed categories; `002` dedupes and enforces URL uniqueness; `003`
+enables Row-Level Security with signed-in-only policies.
 
-> Row-Level Security: leave it **off** on `links`/`categories` for this personal
-> tool, or add policies for the anon key. With RLS on and no policy, every query
-> returns empty.
+Before applying `003`: create your (single) account in the Supabase dashboard
+— Authentication → Add user, with **Auto Confirm** checked — and put your
+service role key in `.env.local` (see below). Once `003` is applied, the app
+shows a sign-in screen and anonymous DB access silently returns nothing.
 
 ### 2. Environment
 
-See `.env.example`. Supabase URL + anon key are required; the Ollama and
-quick-save keys are optional.
+See `.env.example`. Supabase URL + anon key are required, and
+`SUPABASE_SERVICE_ROLE_KEY` is needed once RLS is enabled (it's used only
+server-side by the quick-save endpoint and the categorize script — never
+expose it in the browser). The Ollama and quick-save keys are optional.
 
 ### 3. Run
 

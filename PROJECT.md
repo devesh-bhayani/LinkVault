@@ -65,7 +65,9 @@ Browser (all pages are client-rendered)
 │        all data access goes through one module:
 └──────► src/lib/db.ts ───────────────► Supabase Postgres
                 ▲                        (links, categories, FTS column;
-                │                         RLS is OFF by design)
+                │                         RLS ON — authenticated policies;
+                │                         browser signs in via AuthGate,
+                │                         server uses the service role key)
 Server (Next.js API routes)
 ├─ POST /api/fetch-metadata ─► fetch-metadata-server.ts ─► target website
 ├─ POST /api/categorize ─────► categorize-server.ts ─────► Ollama (localhost or tunnel)
@@ -155,9 +157,10 @@ duplicate checking at all — saving the same URL twice makes two rows.
 ## Key design decisions (inferred, with reasoning)
 
 1. **Supabase-as-the-backend, browser-direct access.** Eliminates an entire
-   API layer for a single-user tool. The cost: with RLS off, the anon key in
-   the client bundle is a master key to the data (fine locally; a real
-   decision to make before deploying — GAPS.md #2).
+   API layer for a single-user tool. Secured (since GAPS.md #2 was fixed) by
+   RLS with authenticated-only policies plus a single Supabase Auth account:
+   the browser signs in through `AuthGate`, API routes write via the
+   service-role key.
 2. **All DB access behind `db.ts`.** Components never write inline queries.
    Every helper returns `{ data, error }` Supabase-style rather than
    throwing; callers decide what failure means (several forget to — GAPS.md #8).
@@ -201,9 +204,10 @@ duplicate checking at all — saving the same URL twice makes two rows.
   points. Any text field read from an export must pass through
   `decodeInstagramText()`. The test file's `toInstagramMojibake()` helper is
   the inverse — use it when writing parser tests.
-- **RLS off is intentional.** If someone "helpfully" enables row-level
-  security on `links`/`categories` without adding policies, every query
-  returns empty arrays with no error. It looks exactly like a data-loss bug.
+- **RLS is on, and its failure mode is silence.** With migration `003`
+  applied, an anonymous (signed-out, or missing service key) client gets
+  empty arrays with no error — it looks exactly like a data-loss bug. Check
+  the session before debugging "missing" data.
 - **The import success screen lies right now.** See GAPS.md #1 before
   concluding an import worked.
 - **`db.ts` runs in the browser.** Don't add server-only code (fs, secrets)

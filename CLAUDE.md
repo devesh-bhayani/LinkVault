@@ -89,9 +89,13 @@ supabase/migrations/  # schema; applied BY HAND (no runner)
 - **URLs live in TWO places** in export messages: `content` text AND
   `share.link`. Extract from both. Own messages are skipped via the detected
   display name; sender handle comes from `thread_path`.
-- **Supabase RLS must stay OFF** on `links`/`categories` (or get explicit
-  policies). RLS on + no policy = every query silently returns empty — looks
-  exactly like a bug in the app.
+- **RLS is ON with authenticated-only policies** (migration `003`, GAPS.md
+  #2). The browser needs a signed-in session (`AuthGate` wraps the app in
+  `layout.tsx`); server-side writes need `SUPABASE_SERVICE_ROLE_KEY`
+  (`supabase.ts` picks it automatically when `window` is undefined). A missing
+  session/key doesn't error — queries silently return empty rows, which looks
+  exactly like a bug in the app. Auth calls go through the wrappers in
+  `db.ts`, same as data access.
 - **Dedup is two-layered and import-only:** exact (trailing-slash trim + url
   equality) and fuzzy (`normalizeUrl()` — strips tracking params, `www.`,
   fragments, sorts query params). Manual quick-saves don't fuzzy-dedup, but a
@@ -120,9 +124,10 @@ supabase/migrations/  # schema; applied BY HAND (no runner)
   never edit.
 - `pnpm-lock.yaml` — changes only via pnpm commands, never by hand.
 - `.env.local` — real secrets; never commit, never print. `.env.example` is
-  the documented reference (Supabase vars required; `OLLAMA_URL`,
-  `OLLAMA_MODEL`, `QUICK_SAVE_API_KEY` optional — features degrade
-  gracefully without them).
+  the documented reference (Supabase URL + anon key required;
+  `SUPABASE_SERVICE_ROLE_KEY` required once RLS is on, server-side only —
+  never `NEXT_PUBLIC_`; `OLLAMA_URL`, `OLLAMA_MODEL`, `QUICK_SAVE_API_KEY`
+  optional — features degrade gracefully without them).
 
 ## Mistakes to avoid
 

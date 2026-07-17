@@ -31,31 +31,38 @@ saves fail with a raw constraint error until #5 handles code `23505`.
 
 ---
 
-## 2. HIGH (security) — Deploying this makes the entire database publicly writable
+## 2. RESOLVED IN CODE — pending manual Supabase setup
 
-**What:** There is no authentication anywhere. The Supabase URL and anon key
-ship in the client JS bundle (`NEXT_PUBLIC_*`), and the documented setup
-disables RLS. Anyone who loads the deployed site once can extract the key and
-gain full read/write/delete on `links` and `categories` via Supabase's REST
-API from anywhere, forever (until the key is rotated). Vercel-side protection
-(password, IP allowlist) would NOT help — the data plane is Supabase, not
-Vercel.
+**Was:** No authentication anywhere; anon key in the client bundle; RLS off.
+Anyone who loaded a deployed instance could extract the key and get full
+read/write/delete on both tables via Supabase's REST API.
 
-**Where:** `src/lib/supabase.ts`, `supabase/migrations/001_create_tables.sql`
-(no policies), README setup section (recommends RLS off).
+**Fixed 2026-07-17 (Option A — single-user auth + RLS):**
+- `supabase/migrations/003_enable_rls.sql` — enables RLS on
+  `links`/`categories` with `TO authenticated USING (true) WITH CHECK (true)`
+  policies. Single user, so "any signed-in user" IS the authorization model.
+- `src/components/AuthGate.tsx` — login gate wrapping the whole app in
+  `layout.tsx` (email + password against Supabase Auth; session persists per
+  device). Sign-out button added to `Navbar`.
+- Auth wrappers (`signIn`/`signOut`/`getSession`/`onAuthChange`) in
+  `src/lib/db.ts`.
+- `src/lib/supabase.ts` — server side (API routes only, never bundled) now
+  prefers `SUPABASE_SERVICE_ROLE_KEY`, so `/api/quick-save` keeps writing
+  under RLS; `scripts/backfill-categories.mjs` does the same.
+- Verified: `pnpm build` + `pnpm test` pass; login screen renders at 375px,
+  bad credentials surface the error inline.
 
-**Why it matters:** The app is currently local-only, so this is a
-**pre-deployment blocker**, not a live incident. But the stated plan is to
-deploy to Vercel.
+**STILL REQUIRED (user actions, in this order):**
+1. Supabase dashboard → Authentication → Add user (check **Auto Confirm**).
+2. Add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` (and Vercel env when
+   deploying).
+3. Apply `003_enable_rls.sql` by hand. From then on every browser session
+   must sign in; anonymous queries return empty rows, not errors.
 
-**Fix:** This is the one item too big for a single small task; it needs a
-decision first:
-- Option A (real fix): Supabase email auth with exactly one account; enable
-  RLS with `TO authenticated USING (true)` policies on both tables; add a
-  login gate. Medium-sized change touching `supabase.ts`, pages, migration.
-- Option B (honest stopgap): keep the app undeployed / LAN-only and record
-  that decision here.
-Do not deploy publicly until one of these is done.
+**Residual risk → see #4:** with RLS on, `/api/quick-save` (writing via the
+service role) is the only unauthenticated write path left when
+`QUICK_SAVE_API_KEY` is unset — #4's production key requirement now matters
+more, not less.
 
 ---
 

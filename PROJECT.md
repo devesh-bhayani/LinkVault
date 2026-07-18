@@ -72,7 +72,9 @@ Server (Next.js API routes)
 ├─ POST /api/fetch-metadata ─► fetch-metadata-server.ts ─► target website
 │                              (SSRF-guarded: private-IP block, capped read)
 ├─ POST /api/categorize ─────► categorize-server.ts ─────► Ollama (localhost or tunnel)
+│                              (prod: requires signed-in session token)
 └─ POST /api/quick-save ─────► both of the above + db.createLink
+                               (bearer key; prod refuses if key unset)
                 ▲
 External clients│
 ├─ Chrome MV3 extension (extension/) — context menu + popup

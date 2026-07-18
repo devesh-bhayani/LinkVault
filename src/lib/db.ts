@@ -25,6 +25,14 @@ export function onAuthChange(callback: (signedIn: boolean) => void) {
   return () => data.subscription.unsubscribe();
 }
 
+/** Server-side: true if `token` is a valid Supabase access token for a user.
+ *  Used to gate API routes that the signed-in browser calls (GAPS #4). */
+export async function isValidAccessToken(token: string): Promise<boolean> {
+  if (!token) return false;
+  const { data, error } = await supabase.auth.getUser(token);
+  return !error && !!data.user;
+}
+
 // ── Links ──────────────────────────────────────────────
 
 export async function getLinks(options?: {

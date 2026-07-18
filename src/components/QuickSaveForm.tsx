@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Loader2, Link2, Tag, FileText, Sparkles } from 'lucide-react'
 import { createLink } from '@/lib/db'
-import { getCategories } from '@/lib/db'
+import { getCategories, getSession } from '@/lib/db'
 import { fetchMetadata } from '@/lib/metadata-fetcher'
 import type { Category } from '@/lib/types'
 import Toast from './Toast'
@@ -75,9 +75,14 @@ export default function QuickSaveForm() {
       // Auto-suggest category via Ollama (only fills if the user hasn't typed one)
       if (meta.title || meta.description) {
         try {
+          // Send the session token — /api/categorize requires it in production.
+          const { data: { session } } = await getSession()
           const res = await fetch('/api/categorize', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            },
             body: JSON.stringify({ url, title: meta.title, description: meta.description }),
           })
           const { category } = await res.json()

@@ -98,24 +98,32 @@ same-origin abuse after this hardening is low-risk (see #4).
 
 ---
 
-## 4. MEDIUM-HIGH (security) — Endpoints open by default in production
+## 4. RESOLVED — Endpoints open by default in production
 
-**What:** `POST /api/quick-save` requires its bearer token **only if
-`QUICK_SAVE_API_KEY` is set** — unset means anyone can inject links into the
-library (and trigger #3's fetch on arbitrary URLs). `POST /api/categorize` is
-always unauthenticated — if `OLLAMA_URL` points at a tunnel to your machine,
-it's a free public relay to your LLM. `POST /api/fetch-metadata` is always
-open (see #3).
+**Was:** `POST /api/quick-save` required its bearer token only if
+`QUICK_SAVE_API_KEY` was set (unset = anyone could inject links). `POST
+/api/categorize` was always unauthenticated — a free public relay to a
+tunneled Ollama.
 
-**Where:** `src/app/api/quick-save/route.ts:6-15`,
-`src/app/api/categorize/route.ts`, `.env.example` (documents "open is fine
-for local dev").
+**Fixed 2026-07-18:**
+- `src/app/api/quick-save/route.ts` — in production, returns **503** when no
+  `QUICK_SAVE_API_KEY` is configured (refuse rather than accept anonymous
+  writes); the bearer check still applies whenever a key is set, dev or prod.
+- `src/app/api/categorize/route.ts` — in production, requires a valid
+  Supabase **session token** (Bearer). The in-app form is the only legit
+  caller and now runs behind auth (GAP 2); a plain shared key can't be used
+  because the browser can't hold a server secret. Dev stays open so local
+  work needs no auth setup.
+- `src/lib/db.ts` — `isValidAccessToken(token)` wraps `auth.getUser` for the
+  route to validate the session.
+- `src/components/QuickSaveForm.tsx` — attaches the session token to its
+  `/api/categorize` call (harmless in dev, required in prod).
+- Verified in dev: categorize → 200 (gate skipped), quick-save → 401 with a
+  key set (gate active, not 503). Prod gates are logic-only (not live-tested;
+  needs reachable Supabase + a prod build).
 
-**Fix (one task):** In production (`process.env.NODE_ENV === 'production'`),
-make quick-save return 503 with a clear message when no key is configured;
-apply the same bearer check to `/api/categorize`. Leave dev behavior as-is.
-(`/api/fetch-metadata` is called by the browser form without a key — after #3
-hardening, same-origin abuse is the residual risk; acceptable.)
+**Note:** `/api/fetch-metadata` stays open by design — browser-called without
+a key, and SSRF-hardened in #3; same-origin abuse is the accepted residual.
 
 ---
 

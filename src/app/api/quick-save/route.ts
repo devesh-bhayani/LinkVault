@@ -4,9 +4,19 @@ import { categorizeServer } from '@/lib/categorize-server'
 import { createLink } from '@/lib/db'
 
 const API_KEY = process.env.QUICK_SAVE_API_KEY
+const IS_PROD = process.env.NODE_ENV === 'production'
 
 export async function POST(request: NextRequest) {
-  // Auth: require API key if one is configured
+  // In production the endpoint must not be world-open (GAPS #4): without a
+  // configured key, refuse rather than silently accepting anonymous writes.
+  if (IS_PROD && !API_KEY) {
+    return NextResponse.json(
+      { error: 'Endpoint disabled: set QUICK_SAVE_API_KEY on the server.' },
+      { status: 503 },
+    )
+  }
+
+  // Require the key whenever one is configured (both dev and prod).
   if (API_KEY) {
     const auth = request.headers.get('authorization')
     if (auth !== `Bearer ${API_KEY}`) {

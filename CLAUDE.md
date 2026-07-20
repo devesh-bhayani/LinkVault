@@ -107,16 +107,18 @@ supabase/migrations/  # schema; applied BY HAND (no runner)
 - **The category list has THREE live copies** that must stay in sync:
   migration seed, `src/lib/categorize-server.ts` `CATEGORIES`, and
   `scripts/backfill-categories.mjs` `CATEGORIES`.
-- **Categories aren't really managed:** filter pills come from the
-  `categories` table but `links.category` is free text — custom tags never
-  show as pills (GAPS.md #9).
+- **`links.category` is free text**, but `db.ts` write helpers call
+  `ensureCategory()` to register any tag in the `categories` table so it shows
+  as a filter pill with a stable color (GAPS.md #9). The table still isn't
+  FK-enforced — it's a derived index of tags, kept in sync on write.
 - **Metadata fetching is server-side only** (CORS). 5s timeout, nulls on
   failure. SSRF-hardened (GAPS.md #3): scheme allowlist, DNS-resolved
   private-IP blocking, per-hop redirect re-validation, 512KB cap. Keep new
   outbound-fetch code behind `isSafeUrl()`.
 - **`updated_at` is set in app code** (db.ts update helpers), not a trigger.
-- **Export ZIPs can be 100MB+** and are parsed in-browser; keep memory in
-  mind (currently loaded twice — GAPS.md #6).
+- **Export ZIPs can be 100MB+** and are parsed in-browser; `ImportUploader`
+  loads the ZIP once and passes the `JSZip` instance to detection + parsing
+  (both accept `File | JSZip`). Keep it that way — don't re-`loadAsync`.
 - **App Router:** everything in `src/components/` is `'use client'`; server
   components are only the thin page shells like `/add`.
 

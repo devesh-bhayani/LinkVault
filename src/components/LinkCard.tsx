@@ -16,6 +16,7 @@ interface LinkCardProps {
   onDeleted: (id: string) => void
   onUpdated: (link: Link) => void
   onEdit: (link: Link) => void
+  onError?: (message: string) => void
 }
 
 function getFaviconUrl(url: string): string {
@@ -37,7 +38,7 @@ function truncateUrl(url: string, maxLen = 48): string {
   }
 }
 
-export default function LinkCard({ link, categoryColor, reviewMode, selectable, selected, onToggleSelect, onDeleted, onUpdated, onEdit }: LinkCardProps) {
+export default function LinkCard({ link, categoryColor, reviewMode, selectable, selected, onToggleSelect, onDeleted, onUpdated, onEdit, onError }: LinkCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTogglingRead, setIsTogglingRead] = useState(false)
@@ -49,15 +50,22 @@ export default function LinkCard({ link, categoryColor, reviewMode, selectable, 
   async function handleDelete() {
     setMenuOpen(false)
     setIsDeleting(true)
-    await deleteLink(link.id)
+    const { error } = await deleteLink(link.id)
+    if (error) {
+      // Don't remove the card on a failed delete — it'd reappear on reload.
+      setIsDeleting(false)
+      onError?.('Failed to delete link. Try again.')
+      return
+    }
     onDeleted(link.id)
   }
 
   async function handleToggleRead() {
     setMenuOpen(false)
     setIsTogglingRead(true)
-    const { data } = await updateLink(link.id, { is_read: !link.is_read })
+    const { data, error } = await updateLink(link.id, { is_read: !link.is_read })
     if (data) onUpdated(data)
+    else if (error) onError?.('Failed to update link.')
     setIsTogglingRead(false)
   }
 

@@ -270,6 +270,7 @@ export default function DashboardPage() {
           onDeleted={handleDeleted}
           onUpdated={handleUpdated}
           onEdit={setEditingLink}
+          onError={msg => setToast({ message: msg, type: 'error' })}
         />
 
         {/* Empty state */}

@@ -14,11 +14,12 @@ interface LinkListProps {
   onDeleted: (id: string) => void
   onUpdated: (link: Link) => void
   onEdit: (link: Link) => void
+  onError?: (message: string) => void
 }
 
 const SKELETON_COUNT = 6
 
-export default function LinkList({ links, categories, loading, reviewMode, selectable, selectedIds, onToggleSelect, onDeleted, onUpdated, onEdit }: LinkListProps) {
+export default function LinkList({ links, categories, loading, reviewMode, selectable, selectedIds, onToggleSelect, onDeleted, onUpdated, onEdit, onError }: LinkListProps) {
   const colorMap = new Map(categories.map(c => [c.name, c.color]))
 
   if (loading) {
@@ -58,6 +59,7 @@ export default function LinkList({ links, categories, loading, reviewMode, selec
           onDeleted={onDeleted}
           onUpdated={onUpdated}
           onEdit={onEdit}
+          onError={onError}
         />
       ))}
     </div>

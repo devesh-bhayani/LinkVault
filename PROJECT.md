@@ -99,9 +99,11 @@ One load-bearing table, one satellite:
   review queue), timestamps. A generated `fts` tsvector column concatenates
   title/description/category/sender/url; searches use
   `.textSearch('fts', q, { type: 'websearch' })`.
-- **`categories`** — a seeded list of eight names + hex colors. It drives the
-  filter pills and tag colors. NB: `links.category` is free text and is *not*
-  foreign-keyed to this table — the two can and do drift (see GAPS.md #9).
+- **`categories`** — a seeded list of names + hex colors that drives the
+  filter pills and tag colors. `links.category` is free text and *not*
+  foreign-keyed, but `db.ts`'s write helpers call `ensureCategory()` to
+  register each tag here on save, so the table stays a superset of tags in use
+  (GAPS.md #9, fixed).
 
 Schema lives in `supabase/migrations/001_create_tables.sql` and must be
 applied by hand (SQL editor or `supabase db push`); there is no migration
@@ -172,8 +174,8 @@ duplicate checking at all — saving the same URL twice makes two rows.
    nice-to-have did. This is the most consistently applied principle in the
    codebase.
 4. **Client-side ZIP parsing.** Privacy (DMs never leave the machine) and no
-   server infrastructure for 100MB uploads. Cost: memory pressure on phones
-   (GAPS.md #6).
+   server infrastructure for 100MB uploads. The ZIP is decoded once and the
+   `JSZip` instance shared across detection and parsing (GAPS.md #6, fixed).
 5. **Tests only where logic is subtle and pure.** Parser (with a clever
    mojibake round-trip helper), URL extraction, URL normalization. UI, db
    wrappers, and API routes are untested — accepted risk for a personal tool,
@@ -216,9 +218,10 @@ duplicate checking at all — saving the same URL twice makes two rows.
 - **`db.ts` runs in the browser.** Don't add server-only code (fs, secrets)
   to it; server-only logic goes in `*-server.ts` modules, which client code
   must never import.
-- **Categories look managed but aren't.** The pills come from the
-  `categories` table; the value on a link is free text. A custom-typed tag
-  saves fine but never appears as a filter pill.
+- **Categories are free text with a synced index.** The value on a link is
+  free text; `db.ts` write helpers call `ensureCategory()` to register each
+  tag in the `categories` table (which drives the filter pills), so custom
+  tags do become pills. The table is a derived index, not an FK constraint.
 - **`updated_at` is set by application code** (`new Date().toISOString()` in
   the update helpers), not by a DB trigger. Bypass `db.ts` and it silently
   stays stale.

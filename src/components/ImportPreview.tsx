@@ -13,11 +13,12 @@ interface PreviewItem extends ExtractedLink {
 
 interface ImportPreviewProps {
   items: PreviewItem[]
+  username: string
   onConfirm: (selected: ExtractedLink[]) => Promise<void>
   onBack: () => void
 }
 
-export default function ImportPreview({ items, onConfirm, onBack }: ImportPreviewProps) {
+export default function ImportPreview({ items, username, onConfirm, onBack }: ImportPreviewProps) {
   const newItems = useMemo(() => items.filter(i => i.dupeOf === null), [items])
   const [selected, setSelected] = useState<Set<string>>(() => new Set(newItems.map(i => i.url)))
   const [isImporting, setIsImporting] = useState(false)
@@ -94,6 +95,14 @@ export default function ImportPreview({ items, onConfirm, onBack }: ImportPrevie
           ))}
         </div>
       </div>
+
+      {/* Identity note — lets the user catch a wrong username guess (GAPS #7) */}
+      {username && (
+        <p className="text-xs text-foreground/50 px-1">
+          Excluding messages you sent as <span className="font-medium text-foreground/70">{username}</span>.{' '}
+          <button onClick={onBack} className="text-accent hover:underline">Not you?</button>
+        </p>
+      )}
 
       {/* Select all row */}
       {displayed.length > 0 && (

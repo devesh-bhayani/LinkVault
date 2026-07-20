@@ -58,6 +58,19 @@ async function buildExportZip(conversation: unknown): Promise<File> {
   return bytes as unknown as File
 }
 
+/** Build an export zip spanning multiple conversation folders. */
+async function buildMultiExportZip(convs: { folder: string; conv: unknown }[]): Promise<File> {
+  const zip = new JSZip()
+  for (const { folder, conv } of convs) {
+    zip.file(
+      `your_instagram_activity/messages/inbox/${folder}/message_1.json`,
+      JSON.stringify(conv),
+    )
+  }
+  const bytes = await zip.generateAsync({ type: 'uint8array' })
+  return bytes as unknown as File
+}
+
 describe('parseInstagramExport', () => {
   let links: Awaited<ReturnType<typeof parseInstagramExport>>
 
@@ -121,9 +134,23 @@ describe('parseInstagramExport', () => {
 })
 
 describe('autoDetectCurrentUser', () => {
-  it('returns a participant name from the export', async () => {
+  it('returns null on a single-conversation export (both participants tie)', async () => {
+    // Ambiguous evidence — guessing here risks inverting the import (GAPS #7).
     const file = await buildExportZip(MOCK_CONVERSATION)
-    const name = await autoDetectCurrentUser(file)
-    expect(['Test User', 'creator_account']).toContain(name)
+    expect(await autoDetectCurrentUser(file)).toBeNull()
+  })
+
+  it('detects the participant common to multiple conversations', async () => {
+    const mkConv = (creator: string) => ({
+      participants: [{ name: 'Test User' }, { name: creator }],
+      messages: [],
+      title: creator,
+      thread_path: `inbox/${creator}`,
+    })
+    const file = await buildMultiExportZip([
+      { folder: 'creator_a_1', conv: mkConv('creator_a') },
+      { folder: 'creator_b_2', conv: mkConv('creator_b') },
+    ])
+    expect(await autoDetectCurrentUser(file)).toBe('Test User')
   })
 })

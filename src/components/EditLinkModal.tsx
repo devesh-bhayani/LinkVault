@@ -20,6 +20,7 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
   })
   const [categories, setCategories] = useState<Category[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
 
@@ -52,7 +53,8 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
   async function handleSave() {
     if (!form.url.trim()) return
     setIsSaving(true)
-    const { data } = await updateLink(link.id, {
+    setError(null)
+    const { data, error } = await updateLink(link.id, {
       url: form.url.trim(),
       title: form.title.trim() || null,
       category: form.category.trim() || null,
@@ -62,6 +64,8 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
     if (data) {
       onSaved(data)
       onClose()
+    } else {
+      setError(error?.message ?? 'Failed to save changes. Try again.')
     }
   }
 
@@ -170,6 +174,8 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
               className="input resize-none"
             />
           </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">

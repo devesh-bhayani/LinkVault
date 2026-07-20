@@ -91,7 +91,8 @@ export async function getAllLinks(): Promise<Link[]> {
       .order('created_at', { ascending: false })
       .range(from, from + PAGE - 1);
 
-    if (error || !data) break;
+    if (error) throw error; // don't silently return a partial export
+    if (!data) break;
     all.push(...(data as Link[]));
     if (data.length < PAGE) break;
     from += PAGE;
@@ -132,6 +133,8 @@ export async function createLink(link: LinkInsert) {
     return { data: null as Link | null, error: null, duplicate: true };
   }
 
+  if (!error && link.category) await ensureCategory(link.category);
+
   return { data: data as Link | null, error, duplicate: false };
 }
 
@@ -142,6 +145,8 @@ export async function updateLink(id: string, updates: Partial<LinkInsert>) {
     .eq('id', id)
     .select()
     .single();
+
+  if (!error && updates.category) await ensureCategory(updates.category);
 
   return { data: data as Link | null, error };
 }
@@ -163,6 +168,8 @@ export async function bulkUpdateLinks(ids: string[], updates: Partial<LinkInsert
     .update({ ...updates, updated_at: new Date().toISOString() })
     .in('id', ids)
     .select();
+
+  if (!error && updates.category) await ensureCategory(updates.category);
 
   return { data: data as Link[] | null, error };
 }
@@ -211,7 +218,8 @@ export async function getAllNormalizedUrls(): Promise<Set<string>> {
       .select('url')
       .range(from, from + PAGE - 1);
 
-    if (error || !data) break;
+    if (error) throw error; // a partial set would let real dupes slip through
+    if (!data) break;
     for (const row of data as { url: string }[]) {
       norm.add(normalizeUrl(row.url));
     }
@@ -241,6 +249,39 @@ export async function createCategory(name: string, color: string) {
     .single();
 
   return { data: data as Category | null, error };
+}
+
+// links.category is free text; the categories table drives the filter pills
+// and tag colors. Without this, custom tags saved on links never appear as
+// pills (GAPS #9). Register any category we write so it becomes filterable.
+const CATEGORY_PALETTE = [
+  '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B',
+  '#EF4444', '#EC4899', '#6366F1', '#6B7280',
+];
+
+/** Stable palette color for a name (seeded categories keep their own via the
+ *  ignoreDuplicates upsert below). */
+function colorFor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return CATEGORY_PALETTE[h % CATEGORY_PALETTE.length];
+}
+
+/** Best-effort: ensure `name` exists in the categories table so it shows as a
+ *  filter pill. Never throws — a save must not fail because tagging did. */
+export async function ensureCategory(name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  try {
+    await supabase
+      .from('categories')
+      .upsert({ name: trimmed, color: colorFor(trimmed) }, {
+        onConflict: 'name',
+        ignoreDuplicates: true,
+      });
+  } catch {
+    // tagging is a nice-to-have; ignore failures
+  }
 }
 
 // ── Stats ──────────────────────────────────────────────

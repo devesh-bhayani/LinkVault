@@ -149,89 +149,73 @@ duplicate manual saves still create duplicate rows — harmless, just untidy.
 
 ---
 
-## 6. MEDIUM — Instagram export ZIP is buffered in memory twice
+## 6. RESOLVED — Instagram export ZIP was buffered in memory twice
 
-**What:** `autoDetectCurrentUser()` and `parseInstagramExport()` each call
-`JSZip.loadAsync(file)`, so the full ZIP is decoded into memory twice per
-import session. CLAUDE.md's own pitfall list warns exports can be 100MB+ and
-imports are expected to run on phones.
+**Was:** `autoDetectCurrentUser()` and `parseInstagramExport()` each called
+`JSZip.loadAsync(file)`, decoding a 100MB+ export into memory twice per import.
 
-**Where:** `src/lib/instagram-parser.ts:39,90`,
-`src/components/ImportUploader.tsx:43-60` (calls both back-to-back).
-
-**Fix (one task):** Change both functions to accept `File | JSZip`; in
-`ImportUploader.handleFile`, `await JSZip.loadAsync(file)` once and pass the
-instance to both. Update the parser test (it already passes bytes directly).
+**Fixed 2026-07-18:** both functions now accept `File | JSZip` (via a `toZip`
+helper in `instagram-parser.ts`); `ImportUploader.handleFile` calls
+`JSZip.loadAsync(file)` once and passes the instance to detection and parsing,
+and stores it in `pendingRef` so the manual-name path reuses it too. Parser
+tests still pass a File and exercise the load-from-bytes branch.
 
 ---
 
-## 7. MEDIUM — Username auto-detection can silently pick the wrong person
+## 7. RESOLVED — Username auto-detection could silently pick the wrong person
 
-**What:** The current user is inferred as the participant name appearing in
-the most sampled conversations, with ties broken by first insertion. With an
-export containing one or two conversations, both participants tie and the
-winner is effectively arbitrary. Wrong winner means the import **keeps your
-own messages and drops the creator's** — inverted results with no warning.
-The detected name is passed to the preview stage (`username`) but never
-rendered, so the user can't catch it.
+**Was:** The current user was inferred as the most-frequent participant, ties
+broken arbitrarily. A 1–2 conversation export ties, and a wrong winner
+inverts the import (keeps your messages, drops the creator's) with no warning.
 
-**Where:** `src/lib/instagram-parser.ts:36-76`,
-`src/app/import/page.tsx:29-50` (unused `username` in preview stage),
-`src/components/ImportPreview.tsx` (doesn't display it).
-
-**Fix (one task):** In `autoDetectCurrentUser`, return `null` unless the top
-name's count is ≥ 2 and strictly greater than the runner-up (falls back to
-the existing manual-name prompt). In `ImportPreview`, render "Importing
-messages sent **to** {username}" with a "Not you?" link that returns to the
-manual-name stage.
+**Fixed 2026-07-18:**
+- `autoDetectCurrentUser` now returns `null` unless the top name's count is
+  ≥ 2 **and** strictly greater than the runner-up — ambiguous exports fall
+  through to the existing manual-name prompt instead of guessing.
+- `ImportPreview` displays "Excluding messages you sent as **{username}**"
+  with a "Not you?" link back to the upload/name step, so a wrong guess is
+  visible and correctable.
+- New test covers both the tie→null and multi-conversation→detected cases.
 
 ---
 
-## 8. MEDIUM — Swallowed errors make failures look like success across the UI
+## 8. RESOLVED — Swallowed errors that made failures look like success
 
-**What:** Several paths ignore the `error` half of db.ts results or drop
-async failures entirely:
-- `LinkCard.handleDelete` calls `deleteLink` and removes the card
-  unconditionally — a failed delete vanishes from the UI and reappears on
-  reload (`src/components/LinkCard.tsx:49-54`).
-- `EditLinkModal.handleSave` ignores `error`; on failure the modal just stops
-  spinning, silently (`src/components/EditLinkModal.tsx:52-66`).
-- `getAllLinks()` and `getAllNormalizedUrls()` `break` on a mid-pagination
-  error, silently returning a **partial** export / partial dedup set
-  (`src/lib/db.ts:56-70,166-186`). A partial dedup set means real duplicates
-  sail through import preview unmarked.
-- `ImportUploader` fire-and-forgets `onParsed(...)` (typed `void`, actually
-  async) — a throw in the import page's dedup step is an unhandled rejection
-  and the UI sticks on the progress screen
-  (`src/components/ImportUploader.tsx:26-41`, `src/app/import/page.tsx:29`).
+**Was:** Several paths ignored the `error` half of db.ts results or dropped
+async failures — failed deletes vanished then reappeared on reload, the edit
+modal failed silently, paginated reads returned partial data on error, and
+`ImportUploader` fire-and-forgot an async `onParsed`.
 
-**Fix (one task):** Make the two pagination helpers throw on error; await
-`onParsed` inside the existing try/catch (change the prop type to
-`Promise<void>`); check `error` in `handleDelete`/`handleSave` and show the
-existing Toast/error affordances.
+**Fixed 2026-07-18:**
+- `getAllLinks` / `getAllNormalizedUrls` now `throw error` mid-pagination
+  instead of returning partial results (a partial dedup set would let real
+  duplicates through import preview).
+- `ImportUploader.onParsed` is typed `Promise<void> | void` and awaited inside
+  the existing try/catch, so a throw in the page's dedup step lands on the
+  error screen instead of hanging on progress.
+- `LinkCard` gained an optional `onError` (threaded from both pages' toast via
+  `LinkList`); `handleDelete` keeps the card and reports on failure,
+  `handleToggleRead` reports too.
+- `EditLinkModal.handleSave` shows an inline error instead of silently
+  stopping the spinner.
 
 ---
 
-## 9. MEDIUM — Categories have two sources of truth, and the managed half is abandoned
+## 9. RESOLVED — Categories had two sources of truth; custom tags never showed as pills
 
-**What:** Filter pills and colors come from the `categories` table; the value
-stored on a link is free text with no FK. Typing a novel category in Quick
-Save/Edit/BulkActionBar saves fine but never appears as a filter pill and
-gets the fallback terracotta color. `createCategory()` exists in db.ts and is
-called by nothing — the "managed categories" idea was started and dropped.
+**Was:** Filter pills/colors came from the `categories` table but `links.category`
+is free text with no FK, so a custom-typed tag saved fine yet never appeared
+as a filter pill (reachable only via search).
 
-**Where:** `src/lib/db.ts:199-207` (dead `createCategory`),
-`src/components/QuickSaveForm.tsx` / `EditLinkModal.tsx` /
-`BulkActionBar.tsx` (free-text entry), `src/app/page.tsx` (pills from table).
+**Fixed 2026-07-18 (managed option):** `db.ts` gained `ensureCategory(name)` —
+a best-effort `upsert(..., { onConflict: 'name', ignoreDuplicates: true })`
+that assigns a stable palette color (seeded categories keep their own colors
+via `ignoreDuplicates`). `createLink`, `updateLink`, and `bulkUpdateLinks`
+call it whenever they write a non-null category, so any tag becomes a filter
+pill. It never throws — tagging must not fail a save.
 
-**Why it matters:** Links tagged with custom categories are only reachable
-via search, which quietly undermines the filter feature.
-
-**Fix (pick one, one task either way):**
-- *Managed:* after any save/update with a category not in the table, call
-  `createCategory(name, colorFromSmallPalette)` — pills then always match.
-- *Unmanaged (simpler):* derive pills from `SELECT DISTINCT category FROM
-  links` and drop the `categories` table + `createCategory` entirely.
+**Leftover:** the old `createCategory()` is now superseded and still unused —
+delete it as part of #12 (dead-code cleanup).
 
 ---
 

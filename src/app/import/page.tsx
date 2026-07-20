@@ -134,6 +134,7 @@ export default function ImportPage() {
           {stage.type === 'preview' && (
             <ImportPreview
               items={stage.items}
+              username={stage.username}
               onConfirm={handleConfirm}
               onBack={() => setStage({ type: 'upload' })}
             />

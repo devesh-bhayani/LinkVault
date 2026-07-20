@@ -147,6 +147,7 @@ export default function ReviewPage() {
           onDeleted={handleDeleted}
           onUpdated={handleUpdated}
           onEdit={setEditingLink}
+          onError={msg => setToast({ message: msg, type: 'error' })}
         />
 
         {isEmpty && (

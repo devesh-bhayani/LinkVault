@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import JSZip from 'jszip'
 import { Upload, FileArchive, AlertCircle, User } from 'lucide-react'
 import { autoDetectCurrentUser, parseInstagramExport } from '@/lib/instagram-parser'
 import type { ExtractedLink } from '@/lib/types'
 
 interface ImportUploaderProps {
-  onParsed: (links: ExtractedLink[], username: string) => void
+  onParsed: (links: ExtractedLink[], username: string) => Promise<void> | void
 }
 
 type Stage =
   | { type: 'idle' }
   | { type: 'detecting'; fileName: string }
-  | { type: 'needs_name'; file: File; fileName: string }
+  | { type: 'needs_name'; fileName: string }
   | { type: 'parsing'; fileName: string; processed: number; total: number }
   | { type: 'error'; message: string }
 
@@ -21,17 +22,17 @@ export default function ImportUploader({ onParsed }: ImportUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [manualName, setManualName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const pendingFileRef = useRef<File | null>(null)
+  // Hold the already-loaded zip so re-entry (manual name) doesn't re-decode it.
+  const pendingRef = useRef<{ zip: JSZip; fileName: string } | null>(null)
 
-  const processFile = useCallback(async (file: File, username: string) => {
-    const fileName = file.name
+  const processZip = useCallback(async (zip: JSZip, fileName: string, username: string) => {
     setStage({ type: 'parsing', fileName, processed: 0, total: 0 })
 
     try {
-      const links = await parseInstagramExport(file, username, ({ processed, total }) => {
+      const links = await parseInstagramExport(zip, username, ({ processed, total }) => {
         setStage({ type: 'parsing', fileName, processed, total })
       })
-      onParsed(links, username)
+      await onParsed(links, username)
     } catch (err) {
       setStage({
         type: 'error',
@@ -49,20 +50,29 @@ export default function ImportUploader({ onParsed }: ImportUploaderProps) {
     const fileName = file.name
     setStage({ type: 'detecting', fileName })
 
-    const detected = await autoDetectCurrentUser(file)
+    // Decode the zip ONCE here and reuse it for detection and parsing (GAPS #6).
+    let zip: JSZip
+    try {
+      zip = await JSZip.loadAsync(file)
+    } catch {
+      setStage({ type: 'error', message: 'Couldn’t read that ZIP file. Is it a valid Instagram export?' })
+      return
+    }
+
+    const detected = await autoDetectCurrentUser(zip)
 
     if (detected) {
-      await processFile(file, detected)
+      await processZip(zip, fileName, detected)
     } else {
-      pendingFileRef.current = file
-      setStage({ type: 'needs_name', file, fileName })
+      pendingRef.current = { zip, fileName }
+      setStage({ type: 'needs_name', fileName })
     }
-  }, [processFile])
+  }, [processZip])
 
   const handleManualSubmit = async () => {
     const name = manualName.trim()
-    if (!name || !pendingFileRef.current) return
-    await processFile(pendingFileRef.current, name)
+    if (!name || !pendingRef.current) return
+    await processZip(pendingRef.current.zip, pendingRef.current.fileName, name)
   }
 
   // Drag handlers
@@ -124,7 +134,7 @@ export default function ImportUploader({ onParsed }: ImportUploaderProps) {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => { setStage({ type: 'idle' }); pendingFileRef.current = null }}
+            onClick={() => { setStage({ type: 'idle' }); pendingRef.current = null }}
             className="flex-1 py-2.5 rounded-input border border-foreground/15 text-sm font-medium hover:bg-foreground/5 transition-colors"
           >
             Cancel

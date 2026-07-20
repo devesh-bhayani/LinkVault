@@ -30,14 +30,20 @@ interface InstagramConversation {
   thread_path: string;
 }
 
+// Accept an already-loaded zip so a 100MB export isn't decoded twice per
+// import (GAPS #6). Falls back to loading a File/bytes for direct callers.
+async function toZip(input: File | JSZip): Promise<JSZip> {
+  return input instanceof JSZip ? input : JSZip.loadAsync(input);
+}
+
 // ── Auto-detect the current user's display name ───────────────────────────────
 // The logged-in user appears as a participant in every conversation.
 // We sample up to SAMPLE_SIZE files and return the name with the most hits.
 const SAMPLE_SIZE = 30;
 
-export async function autoDetectCurrentUser(file: File): Promise<string | null> {
+export async function autoDetectCurrentUser(input: File | JSZip): Promise<string | null> {
   try {
-    const zip = await JSZip.loadAsync(file);
+    const zip = await toZip(input);
     const messageFiles = Object.keys(zip.files)
       .filter(p => p.includes('messages/inbox/') && p.endsWith('.json'))
       .slice(0, SAMPLE_SIZE);
@@ -62,14 +68,26 @@ export async function autoDetectCurrentUser(file: File): Promise<string | null> 
 
     if (nameCounts.size === 0) return null;
 
-    // The current user appears in every sampled conversation
+    // The logged-in user appears in every sampled conversation, so a confident
+    // detection means one name clearly leads. On weak or tied evidence (e.g. a
+    // single-conversation export where both participants count once) return
+    // null and let the caller prompt — guessing wrong inverts the import,
+    // keeping your own messages and dropping the creator's (GAPS #7).
     let topName = '';
     let topCount = 0;
+    let secondCount = 0;
     nameCounts.forEach((count, name) => {
-      if (count > topCount) { topCount = count; topName = name; }
+      if (count > topCount) {
+        secondCount = topCount;
+        topCount = count;
+        topName = name;
+      } else if (count > secondCount) {
+        secondCount = count;
+      }
     });
 
-    return topName || null;
+    if (topCount >= 2 && topCount > secondCount) return topName;
+    return null;
   } catch {
     return null;
   }
@@ -83,11 +101,11 @@ export interface ParseProgress {
 }
 
 export async function parseInstagramExport(
-  file: File,
+  input: File | JSZip,
   currentUserName: string,
   onProgress?: (progress: ParseProgress) => void,
 ): Promise<ExtractedLink[]> {
-  const zip = await JSZip.loadAsync(file);
+  const zip = await toZip(input);
   const links: ExtractedLink[] = [];
   const seenUrls = new Set<string>();
 

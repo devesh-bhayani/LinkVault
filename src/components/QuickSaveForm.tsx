@@ -29,7 +29,11 @@ export default function QuickSaveForm() {
   const [toast, setToast] = useState<ToastState | null>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
   const metaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const categoryInputRef = useRef<HTMLInputElement>(null)
+  // Bumped whenever the URL changes or the form is saved, so an in-flight
+  // metadata/categorize response can't repopulate a form it no longer matches.
+  const metaGen = useRef(0)
+  // Latest submit handler, so the keydown listener can bind once.
+  const submitRef = useRef<() => void>(() => {})
 
   // Auto-focus URL on mount
   useEffect(() => {
@@ -48,20 +52,23 @@ export default function QuickSaveForm() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault()
-        handleSubmit()
+        submitRef.current()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  })
+  }, [])
 
   const autoFetchMeta = useCallback((url: string) => {
     if (metaDebounceRef.current) clearTimeout(metaDebounceRef.current)
     if (!url.startsWith('http')) return
 
+    const gen = ++metaGen.current
+
     metaDebounceRef.current = setTimeout(async () => {
       setIsFetchingMeta(true)
       const meta = await fetchMetadata(url)
+      if (gen !== metaGen.current) return // URL changed or form saved meanwhile
       setIsFetchingMeta(false)
 
       if (meta.title) {
@@ -86,7 +93,7 @@ export default function QuickSaveForm() {
             body: JSON.stringify({ url, title: meta.title, description: meta.description }),
           })
           const { category } = await res.json()
-          if (category) {
+          if (category && gen === metaGen.current) {
             setForm(prev => ({ ...prev, category: prev.category || category }))
           }
         } catch {
@@ -115,6 +122,12 @@ export default function QuickSaveForm() {
       return
     }
 
+    // Cancel any pending/in-flight metadata work so it can't refill the form
+    // after we clear it.
+    if (metaDebounceRef.current) clearTimeout(metaDebounceRef.current)
+    metaGen.current++
+    setIsFetchingMeta(false)
+
     setIsSaving(true)
     const { error, duplicate } = await createLink({
       url: form.url.trim(),
@@ -140,6 +153,8 @@ export default function QuickSaveForm() {
       urlInputRef.current?.focus()
     }
   }
+
+  submitRef.current = handleSubmit
 
   const filteredCategories = categories.filter(c =>
     c.name.toLowerCase().includes(form.category.toLowerCase())
@@ -206,7 +221,6 @@ export default function QuickSaveForm() {
             </span>
           </label>
           <input
-            ref={categoryInputRef}
             id="category"
             type="text"
             placeholder="Coding, Design, Finance… or type a new one"

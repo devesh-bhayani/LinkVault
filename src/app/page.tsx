@@ -38,6 +38,9 @@ export default function DashboardPage() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeSearch = useRef('')
   const activeCategory = useRef<string | null>(null)
+  // Bumped per fetch so a slow response can't overwrite a newer one.
+  const fetchGen = useRef(0)
+  const isFirstRender = useRef(true)
 
   const fetchLinks = useCallback(async (
     searchVal: string,
@@ -45,6 +48,8 @@ export default function DashboardPage() {
     offset: number,
     append: boolean
   ) => {
+    const gen = ++fetchGen.current
+
     if (offset === 0) setLoading(true)
     else setLoadingMore(true)
 
@@ -54,6 +59,10 @@ export default function DashboardPage() {
       limit: PAGE_SIZE,
       offset,
     })
+
+    // Superseded by a newer query — drop this result (the newer one owns the
+    // loading state and will clear it).
+    if (gen !== fetchGen.current) return
 
     if (offset === 0) setLoading(false)
     else setLoadingMore(false)
@@ -78,8 +87,12 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory])
 
-  // Debounced search
+  // Debounced search — skipped on mount, where the effect above already loaded.
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
     searchDebounceRef.current = setTimeout(() => {
       activeSearch.current = search

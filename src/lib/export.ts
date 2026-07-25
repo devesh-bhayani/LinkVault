@@ -15,9 +15,16 @@ const CSV_COLUMNS: (keyof Link)[] = [
   'updated_at',
 ]
 
-function escapeCsv(value: unknown): string {
+// Excel/Sheets execute a cell whose text starts with one of these. Link
+// titles and Instagram message context are third-party text, so neutralize
+// them with a leading apostrophe (GAPS #10). No exported column is numeric,
+// so prefixing '-' costs nothing here.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/
+
+export function escapeCsv(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const str = String(value)
+  let str = String(value)
+  if (FORMULA_TRIGGER.test(str)) str = `'${str}`
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`
   }

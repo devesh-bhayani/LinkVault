@@ -69,8 +69,8 @@ supabase/migrations/  # schema; applied BY HAND (no runner)
 10. **Use the design tokens** in `tailwind.config.ts`
     (`background`/`foreground`/`accent`, `rounded-card/input/pill`,
     `shadow-card`) and the `.input`/`.btn-primary` classes from `globals.css`.
-    No hardcoded hex, no new radii. (Exception: the `tag.*` palette in the
-    Tailwind config is dead — tag colors come from the DB.)
+    No hardcoded hex, no new radii. Tag colors are the exception — they come
+    from the `categories` table, applied as inline styles.
 11. **Don't change the `POST /api/quick-save` contract** without updating
     `extension/` — the extension and iOS Shortcut are separately-installed
     clients that break silently.

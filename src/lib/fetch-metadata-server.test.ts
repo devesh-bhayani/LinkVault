@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isPrivateIp } from './fetch-metadata-server'
+import { isPrivateIp, decodeEntities, getMeta } from './fetch-metadata-server'
 
 describe('isPrivateIp', () => {
   it('blocks IPv4 loopback and unspecified', () => {
@@ -53,5 +53,56 @@ describe('isPrivateIp', () => {
   it('allows public IPv6', () => {
     expect(isPrivateIp('2606:4700:4700::1111')).toBe(false)
     expect(isPrivateIp('fec0::1')).toBe(false) // deprecated site-local, outside fe80::/10
+  })
+})
+
+describe('decodeEntities', () => {
+  it('decodes the named entities sites actually emit', () => {
+    expect(decodeEntities('Tom &amp; Jerry')).toBe('Tom & Jerry')
+    expect(decodeEntities('&lt;tag&gt;')).toBe('<tag>')
+    expect(decodeEntities('&quot;quoted&quot;')).toBe('"quoted"')
+    expect(decodeEntities('it&#039;s')).toBe("it's")
+    expect(decodeEntities('it&apos;s')).toBe("it's")
+  })
+
+  it('decodes decimal and hex numeric entities', () => {
+    expect(decodeEntities('caf&#233;')).toBe('café')
+    expect(decodeEntities('caf&#xe9;')).toBe('café')
+  })
+
+  it('decodes astral code points to a single emoji, not two broken halves', () => {
+    // Regression: String.fromCharCode truncated these (GAPS #14).
+    expect(decodeEntities('&#128512;')).toBe('😀')
+    expect(decodeEntities('&#x1F600;')).toBe('😀')
+  })
+
+  it('leaves out-of-range numeric entities as literal text', () => {
+    expect(decodeEntities('&#99999999;')).toBe('&#99999999;')
+  })
+
+  it('trims surrounding whitespace', () => {
+    expect(decodeEntities('  padded  ')).toBe('padded')
+  })
+})
+
+describe('getMeta', () => {
+  it('reads content when the name attribute comes first', () => {
+    expect(getMeta('<meta property="og:title" content="Hello">', 'og:title')).toBe('Hello')
+  })
+
+  it('reads content when the content attribute comes first', () => {
+    expect(getMeta('<meta content="Hello" property="og:title">', 'og:title')).toBe('Hello')
+  })
+
+  it('accepts name= as well as property=', () => {
+    expect(getMeta('<meta name="description" content="Desc">', 'description')).toBe('Desc')
+  })
+
+  it('decodes entities inside the extracted value', () => {
+    expect(getMeta('<meta name="description" content="A &amp; B">', 'description')).toBe('A & B')
+  })
+
+  it('returns null when the tag is absent', () => {
+    expect(getMeta('<meta name="other" content="x">', 'og:title')).toBeNull()
   })
 })

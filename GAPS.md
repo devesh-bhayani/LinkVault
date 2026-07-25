@@ -214,119 +214,104 @@ via `ignoreDuplicates`). `createLink`, `updateLink`, and `bulkUpdateLinks`
 call it whenever they write a non-null category, so any tag becomes a filter
 pill. It never throws — tagging must not fail a save.
 
-**Leftover:** the old `createCategory()` is now superseded and still unused —
-delete it as part of #12 (dead-code cleanup).
+**Leftover:** none — the superseded `createCategory()` was deleted in #12.
 
 ---
 
-## 10. LOW-MEDIUM — CSV export is vulnerable to spreadsheet formula injection
+## 10. RESOLVED — CSV formula injection
 
-**What:** `escapeCsv()` handles quotes/commas/newlines but not cells starting
-with `=`, `+`, `-`, or `@`. Description and `sender_message_context` contain
-third-party text (Instagram messages) and are exported verbatim; Excel/Sheets
-will execute such cells as formulas on open.
+**Was:** `escapeCsv()` quoted commas/quotes/newlines but passed through cells
+starting with `=`, `+`, `-`, `@` — and description / `sender_message_context`
+hold third-party Instagram text, so Excel/Sheets would execute them on open.
 
-**Where:** `src/lib/export.ts:18-25`.
-
-**Fix (one task):** In `escapeCsv`, when the string starts with `=`, `+`,
-`-`, or `@`, prefix a `'`. Add a unit test (`export.test.ts` — the module is
-pure and currently untested).
+**Fixed 2026-07-26:** `escapeCsv` (now exported) prefixes a `'` when the value
+starts with `=`, `+`, `-`, `@`, tab, or CR, then applies the existing quoting.
+No exported column is numeric, so neutralizing `-` costs nothing. Covered by
+the new `src/lib/export.test.ts` (11 cases incl. a `=HYPERLINK(...)` payload).
 
 ---
 
-## 11. LOW-MEDIUM — Client race conditions
+## 11. RESOLVED — Client race conditions
 
-**What:**
-- Dashboard: no stale-response guard on `fetchLinks`; a slow search response
-  can overwrite a newer one. Also both mount effects fire on load (category
-  effect immediately, search effect 300ms later) → duplicate initial query
-  (`src/app/page.tsx:74-92`).
-- QuickSaveForm: the categorize suggestion lands after an `await` chain; if
-  the user saves and the form clears first, the late response repopulates
-  `category` on the now-empty form, polluting the next entry
-  (`src/components/QuickSaveForm.tsx:58-92,107-134`).
+**Was:** The dashboard had no stale-response guard (a slow search could
+overwrite a newer one) and fired a duplicate query on mount; QuickSaveForm's
+late categorize response could repopulate a form the user had already saved
+and cleared.
 
-**Fix (one task):** Add a generation counter ref incremented per fetch;
-ignore responses whose generation is stale. In QuickSaveForm, clear the
-debounce timer and bump the generation on submit. Skip the search debounce
-effect on first render with a ref flag.
-
----
-
-## 12. LOW — Dead code and dead config
-
-**What/where:**
-- `getLinkById`, `getLinkStats` in `src/lib/db.ts:81-89,211-229` — never
-  called.
-- `createCategory` (`db.ts:199-207`) — never called (see #9 before deleting).
-- `tag.*` color palette in `tailwind.config.ts:19-28` — no `tag-*` class is
-  used anywhere; real colors come from the DB.
-- `categoryInputRef` in `src/components/QuickSaveForm.tsx:32` — assigned,
-  never read.
-- `BookmarkPlus` import in `src/app/import/page.tsx:5` — unused.
-- `ImportUploader` duplicates the pending file in both `stage.needs_name.file`
-  and `pendingFileRef` (`src/components/ImportUploader.tsx:15,24`).
-
-**Why it matters:** Dead paths mislead future sessions into thinking they're
-load-bearing (a stats widget, managed categories) and pad the audit surface.
-
-**Fix (one task):** Delete all of the above (resolve #9 first for
-`createCategory`); keep one of the two pending-file mechanisms. `pnpm build`
-confirms nothing referenced them.
+**Fixed 2026-07-26:**
+- `src/app/page.tsx` — a `fetchGen` ref is bumped per fetch and stale
+  responses are dropped; an `isFirstRender` ref skips the debounced search
+  effect on mount so only the category effect loads initially.
+- `src/components/QuickSaveForm.tsx` — a `metaGen` ref guards both the
+  metadata and categorize `setForm` calls; submitting clears the pending
+  debounce and bumps the generation, so in-flight work can't refill the
+  cleared form.
 
 ---
 
-## 13. LOW — Unpinned dependency
+## 12. RESOLVED — Dead code and dead config
 
-**What:** `"lucide-react": "latest"` in `package.json`. The lockfile pins it
-in practice, but any explicit upgrade or lockfile regeneration can jump a
-major with breaking icon renames.
-
-**Fix (one task):** Pin to the currently locked version with a caret (check
-`pnpm list lucide-react`), e.g. `"^0.4xx.x"`.
-
----
-
-## 14. LOW — Assorted correctness nits
-
-- `decodeEntities()` uses `String.fromCharCode` for numeric entities; astral
-  code points (`&#128512;` emoji) decode wrong. Use `String.fromCodePoint`
-  (`src/lib/fetch-metadata-server.ts:15-16`).
-- Keyboard-shortcut effects re-subscribe on every render (no dependency
-  array): `src/components/QuickSaveForm.tsx:47-56`,
-  `src/components/EditLinkModal.tsx:44-50`. Harmless today; a footgun if
-  anyone adds cost to those handlers.
-- `metadataBase: new URL('http://localhost:3000')` hardcoded in
-  `src/app/layout.tsx:12` — wrong OG URLs when deployed (cosmetic; the site
-  is `noindex`).
-- `next.config.js` sets nosniff/frame/referrer headers but no
-  `Content-Security-Policy`.
-- Single-card delete has no confirmation (bulk delete does) — one mis-tap on
-  a phone permanently deletes a link (`src/components/LinkCard.tsx:49-54`).
-
-Each is a one-line-to-ten-line fix; batch them as one cleanup task.
+**Fixed 2026-07-26.** Deleted: `getLinkById`, `getLinkStats`, and
+`createCategory` from `src/lib/db.ts` (the last superseded by
+`ensureCategory` in #9); the unused `tag.*` palette from
+`tailwind.config.ts`; `categoryInputRef` from `QuickSaveForm`. The unused
+`BookmarkPlus` import and `ImportUploader`'s duplicated pending-file state
+were already removed by the #1 and #6 fixes. `pnpm build` confirms nothing
+referenced them.
 
 ---
 
-## 15. Test coverage — what's tested and what isn't
+## 13. RESOLVED — Unpinned dependency
 
-**Tested (well):** `instagram-parser` (encoding round-trip, both URL sources,
-own-message filtering, dedup), `url-extractor`, `url-normalize`.
+**Fixed 2026-07-26:** `"lucide-react": "latest"` → `"^0.577.0"` (the version
+the lockfile already resolved), so regenerating the lockfile can't silently
+jump a major and rename icons.
 
-**Untested, in order of pain:**
+---
+
+## 14. RESOLVED — Assorted correctness nits
+
+**Fixed 2026-07-26:**
+- `decodeEntities` now uses `String.fromCodePoint` via a `fromCodePointSafe`
+  helper, so astral entities (`&#128512;`) decode to one emoji instead of two
+  broken halves; out-of-range values fall back to the literal entity rather
+  than throwing. Regression-tested.
+- Both Cmd/Ctrl+Enter effects (`QuickSaveForm`, `EditLinkModal`) now bind once
+  with `[]` deps, calling the latest handler through a ref instead of
+  re-subscribing every render.
+- `metadataBase` reads `NEXT_PUBLIC_SITE_URL` (documented in `.env.example`),
+  falling back to localhost.
+- `next.config.js` now sends a `Content-Security-Policy`. `connect-src` is
+  derived from `NEXT_PUBLIC_SUPABASE_URL` (not a hardcoded `*.supabase.co`)
+  so a self-hosted instance still works; `unsafe-eval` is dev-only.
+  **Verified against a production build**: page renders, fonts/styles load,
+  React hydrates, no CSP violations, and the Supabase auth request is
+  permitted (it fails only because the host is unreachable from this machine).
+- Single-card delete now confirms first, matching bulk delete — it's a
+  one-tap permanent action on a phone.
+
+---
+
+## 15. OPEN (reduced) — Test coverage
+
+**Tested:** `instagram-parser` (encoding round-trip, both URL sources,
+own-message filtering, dedup, and post-#7 tie/multi-conversation detection),
+`url-extractor`, `url-normalize`, `export` (quoting + formula injection),
+`fetch-metadata-server` (private-IP guard, entity decoding, meta extraction).
+52 tests across 5 files.
+
+**Still untested — the important one:**
 - The **entire write path**: `createLink`, `bulkCreateLinks`, and the import
   confirm flow. Item #1 shipped broken precisely because nothing executes
-  these against a real or emulated Postgres. Smallest useful step: a manual
-  verification checklist, or a gated integration test (`vitest` with env
-  guard) that round-trips one insert/upsert against a dev Supabase project.
-- `src/lib/export.ts` — pure functions, zero tests; add `export.test.ts`
-  covering quoting, newlines, nulls, and (post-#10) formula injection.
-- `src/lib/fetch-metadata-server.ts` — `getMeta`/`decodeEntities`/
-  `resolveUrl` are pure; test attribute-order variants and entity decoding
-  with fetch mocked.
-- `/api/quick-save` auth behavior (401 with wrong key, open-when-unset,
-  and post-#4 prod refusal).
-- `autoDetectCurrentUser` tie/small-export behavior (post-#7).
+  these against a real or emulated Postgres, and every fix since (#1, #5, #9)
+  has been verified only by build + unit tests. Smallest useful step: a gated
+  integration test (vitest, skipped unless a `SUPABASE_TEST_URL` env var is
+  set) that round-trips one insert, one duplicate insert, and one upsert
+  against a scratch Supabase project.
+- `/api/quick-save` and `/api/categorize` auth behavior — the production
+  branches from #4 are logic-only so far. Testable by importing the route
+  handlers and calling them with a stubbed `NODE_ENV` + fake Request.
 
-**Suggested first task:** `export.test.ts` + `fetch-metadata-server.test.ts`
-(pure logic, no infrastructure, ~an hour of work), then the #1 verification.
+**Note:** several fixes are also gated on manual DB work that hasn't happened
+yet — migrations `002` and `003` still need applying by hand, and until then
+duplicate handling (#5) and RLS (#2) are dormant.

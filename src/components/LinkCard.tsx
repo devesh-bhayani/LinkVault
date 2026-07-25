@@ -49,6 +49,8 @@ export default function LinkCard({ link, categoryColor, reviewMode, selectable, 
 
   async function handleDelete() {
     setMenuOpen(false)
+    // Deletes are permanent and this is a one-tap action on a phone.
+    if (!confirm('Delete this link? This can’t be undone.')) return
     setIsDeleting(true)
     const { error } = await deleteLink(link.id)
     if (error) {

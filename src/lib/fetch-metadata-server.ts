@@ -102,8 +102,19 @@ async function fetchHtmlSafely(rawUrl: string, signal: AbortSignal): Promise<str
   return null // redirect chain too long
 }
 
-/** Decode common HTML entities in extracted text */
-function decodeEntities(str: string): string {
+/** Numeric entity → character. fromCodePoint (not fromCharCode) so astral
+ *  code points like &#128512; decode to one emoji; invalid ranges are left
+ *  as the raw entity rather than throwing. */
+function fromCodePointSafe(code: number, raw: string): string {
+  try {
+    return String.fromCodePoint(code)
+  } catch {
+    return raw
+  }
+}
+
+/** Decode common HTML entities in extracted text (exported for tests) */
+export function decodeEntities(str: string): string {
   return str
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -111,13 +122,13 @@ function decodeEntities(str: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#039;/g, "'")
     .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (raw, n) => fromCodePointSafe(Number(n), raw))
+    .replace(/&#x([0-9a-f]+);/gi, (raw, h) => fromCodePointSafe(parseInt(h, 16), raw))
     .trim()
 }
 
-/** Extract a meta tag content — handles both attribute orders */
-function getMeta(html: string, name: string): string | null {
+/** Extract a meta tag content — handles both attribute orders (exported for tests) */
+export function getMeta(html: string, name: string): string | null {
   const patterns = [
     new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'),
     new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:name|property)=["']${name}["']`, 'i'),

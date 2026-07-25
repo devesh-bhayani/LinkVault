@@ -110,16 +110,6 @@ export async function getUnreadCount(): Promise<number> {
   return count ?? 0;
 }
 
-export async function getLinkById(id: string) {
-  const { data, error } = await supabase
-    .from('links')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  return { data: data as Link | null, error };
-}
-
 export async function createLink(link: LinkInsert) {
   const { data, error } = await supabase
     .from('links')
@@ -241,16 +231,6 @@ export async function getCategories() {
   return { data: data as Category[] | null, error };
 }
 
-export async function createCategory(name: string, color: string) {
-  const { data, error } = await supabase
-    .from('categories')
-    .insert({ name, color })
-    .select()
-    .single();
-
-  return { data: data as Category | null, error };
-}
-
 // links.category is free text; the categories table drives the filter pills
 // and tag colors. Without this, custom tags saved on links never appear as
 // pills (GAPS #9). Register any category we write so it becomes filterable.
@@ -284,24 +264,3 @@ export async function ensureCategory(name: string): Promise<void> {
   }
 }
 
-// ── Stats ──────────────────────────────────────────────
-
-export async function getLinkStats() {
-  const [totalRes, catRes, recentRes] = await Promise.all([
-    supabase.from('links').select('*', { count: 'exact', head: true }),
-    supabase.from('categories').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('links')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-  ]);
-
-  return {
-    data: {
-      totalLinks: totalRes.count ?? 0,
-      totalCategories: catRes.count ?? 0,
-      recentCount: recentRes.count ?? 0,
-    },
-    error: totalRes.error || catRes.error || recentRes.error,
-  };
-}

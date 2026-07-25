@@ -144,8 +144,8 @@ real-time tagging instead.
 
 The category list is duplicated in three live places that must stay in sync:
 the migration seed, `src/lib/categorize-server.ts`, and
-`scripts/backfill-categories.mjs`. (A fourth copy in `tailwind.config.ts`
-(`tag.*` colors) is dead — real tag colors come from the DB.)
+`scripts/backfill-categories.mjs`. Tag *colors* aren't in that list — they
+live in the `categories` table and are applied as inline styles.
 
 ### Duplicate detection (two layers)
 
@@ -227,5 +227,5 @@ duplicate checking at all — saving the same URL twice makes two rows.
   stays stale.
 - **No Prettier, mixed semicolons.** Roughly half the files use semicolons.
   Match the file you're in; don't reformat.
-- **Deleting is instant and permanent.** No soft delete, no undo, and the
-  single-card delete doesn't even confirm (bulk delete does).
+- **Deleting is permanent.** No soft delete, no undo — both single-card and
+  bulk delete confirm first, and that dialog is the only safety net.

@@ -23,6 +23,8 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
   const [error, setError] = useState<string | null>(null)
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  // Latest save handler, so the keydown listener can bind once.
+  const saveRef = useRef<() => void>(() => {})
 
   // Focus title on open
   useEffect(() => {
@@ -44,11 +46,11 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
   // Cmd/Ctrl+Enter to save
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); handleSave() }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); saveRef.current() }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  })
+  }, [])
 
   async function handleSave() {
     if (!form.url.trim()) return
@@ -68,6 +70,8 @@ export default function EditLinkModal({ link, onSaved, onClose }: EditLinkModalP
       setError(error?.message ?? 'Failed to save changes. Try again.')
     }
   }
+
+  saveRef.current = handleSave
 
   const filteredCategories = categories.filter(c =>
     c.name.toLowerCase().includes(form.category.toLowerCase())
